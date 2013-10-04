@@ -1,0 +1,107 @@
+﻿<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Site.master.cs" Inherits="Synchronized_Session.SiteMaster" %>
+
+<!DOCTYPE html>
+<html lang="en">
+<head runat="server">
+    <meta charset="utf-8" />
+    <title><%: Page.Title %> - My ASP.NET Application</title>    
+    <link href="~/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+    <meta name="viewport" content="width=device-width" />
+    
+    <link rel="stylesheet" href="Scripts/jquery-ui-1.10.3.css" />            
+        <script src= "<%= this.ResolveUrl("~/Scripts/json2.js") %>"></script>
+        <script src= "<%= this.ResolveUrl("~/Scripts/jquery-1.8.2.min.js") %>"></script>
+        <script src= "<%= this.ResolveUrl("~/Scripts/jquery-ui-1.8.24.min.js") %>"></script>         
+        <script src= "<%= this.ResolveUrl("~/Scripts/jquery.signalR-2.0.0-rc1.js") %>"></script>        
+        <script src= "<%= this.ResolveUrl("~/signalr/hubs") %>"></script>
+        <script type="text/javascript">
+
+            //Store the session Id for later use
+            var sessionId = "<%=Session.SessionID%>";
+
+            //This is a boolean to enable or disable the session depending on what page you are on. This will be set to true on load by the master page.
+            //This can be set on the child page to false to disable the session for that page.
+            var EnableSessionExpiration;
+
+            //Function which runs page load
+            $(function () {
+                var sessionHub = $.connection.sessionHub;
+
+                //Set the session expiration to true
+                window.EnableSessionExpiration = true;
+
+                //Add function to show a warning when the session is about to expire
+                sessionHub.client.sessionWarning = function () {
+                    ShowAlert();
+                }
+
+                //Add function to close warning after the session has been extended
+                sessionHub.client.sessionRefreshed = function () {
+                    SessionRefreshed();
+                };
+
+                //Add function to throw the user to the session expired page
+                sessionHub.client.sessionExpired = function () {
+                    SessionExpired();
+                };
+
+                //This is to pass the session id so that when the page joins the group, we know which group to put it in
+                $.connection.hub.qs = { "sessionId": sessionId };
+
+                //Start the connection
+                $.connection.hub.start();
+            });
+
+            //When the session is refreshed, all we do is hide the alert on the client
+            function SessionRefreshed() {
+                var dialog = $("#dialog-confirm");
+
+                if (dialog)
+                    dialog.dialog("close");
+            }
+
+            //Here is where we kick the user off of the current page
+            function SessionExpired() {
+                //If we enabled session
+                if (window.EnableSessionExpiration) {
+                    window.location.replace("<%= this.ResolveUrl("~/SessionExpired.aspx") %>");
+                }
+            }
+
+            //Show the dialog
+            function ShowAlert() {
+                //If the session is enabled
+                if (window.EnableSessionExpiration) {
+                    $("#dialog-confirm").dialog({
+                        resizable: false,
+                        height: 340,
+                        modal: true,
+                        buttons: {
+                            "Yes": function () {
+                                $.get("<%= this.ResolveUrl("~/SessionRefreshHandler.axd?connectionId=") %>" + $.connection.hub.id);
+                                SessionRefreshed();
+                            },
+                            "No": function () {
+                                SessionRefreshed();
+                            }
+                        }
+                    });
+                }
+            }
+        </script>  
+</head>
+
+<body>
+    <form runat="server">    
+    <div id="body">        
+        <asp:ContentPlaceHolder runat="server" ID="FeaturedContent" />
+        <section class="content-wrapper main-content clear-fix">
+            <asp:ContentPlaceHolder runat="server" ID="MainContent" />
+        </section>
+    </div>
+    <div id="dialog-confirm" style="display:none;" title="Extend Session?">
+        <p>The session is about to expire, would you like to extend it?</p>
+    </div>
+    </form>         
+</body>
+</html>
